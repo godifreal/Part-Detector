@@ -1,0 +1,251 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Parent = game.CoreGui
+
+-- Toggle Button (always visible)
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0, 40, 0, 40)
+toggleBtn.Position = UDim2.new(0, 20, 0.6, -20)
+toggleBtn.Text = "Open"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextScaled = true
+Instance.new("UICorner", toggleBtn)
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 300, 0, 240) -- Increased height for new button
+frame.Position = UDim2.new(0, 20, 0.6, 0)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame)
+
+local title = Instance.new("TextLabel", frame)
+title.Text = "Part Detector"
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+
+title.MouseEnter:Connect(function()
+    title.TextColor3 = Color3.new(0.6, 1, 0.6)
+end)
+title.MouseLeave:Connect(function()
+    title.TextColor3 = Color3.new(1, 1, 1)
+end)
+
+local pathLabel = Instance.new("TextBox", frame)
+pathLabel.Size = UDim2.new(1, -20, 0, 50)
+pathLabel.Position = UDim2.new(0, 10, 0, 35)
+pathLabel.Text = "Click on a part to detect"
+pathLabel.TextWrapped = true
+pathLabel.TextColor3 = Color3.new(1, 1, 1)
+pathLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+pathLabel.TextXAlignment = Enum.TextXAlignment.Left
+pathLabel.Font = Enum.Font.Gotham
+pathLabel.TextSize = 14
+Instance.new("UICorner", pathLabel)
+
+local copyBtn = Instance.new("TextButton", frame)
+copyBtn.Size = UDim2.new(0.3, 0, 0, 30)
+copyBtn.Position = UDim2.new(0.05, 0, 1, -125)
+copyBtn.Text = "Copy Path"
+copyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+copyBtn.TextColor3 = Color3.new(1, 1, 1)
+copyBtn.Font = Enum.Font.Gotham
+copyBtn.TextScaled = true
+Instance.new("UICorner", copyBtn)
+
+local copyScript = Instance.new("TextButton", frame)
+copyScript.Size = UDim2.new(0.35, 0, 0, 30)
+copyScript.Position = UDim2.new(0.375, 0, 1, -125)
+copyScript.Text = "Copy Spawn Code"
+copyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+copyScript.TextColor3 = Color3.new(1, 1, 1)
+copyScript.Font = Enum.Font.Gotham
+copyScript.TextScaled = true
+Instance.new("UICorner", copyScript)
+
+local highlightBtn = Instance.new("TextButton", frame)
+highlightBtn.Size = UDim2.new(0.25, 0, 0, 30)
+highlightBtn.Position = UDim2.new(0.75, -10, 1, -125)
+highlightBtn.Text = "Highlight: OFF"
+highlightBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+highlightBtn.TextColor3 = Color3.new(1, 1, 1)
+highlightBtn.Font = Enum.Font.Gotham
+highlightBtn.TextScaled = true
+Instance.new("UICorner", highlightBtn)
+
+local setSpawnBtn = Instance.new("TextButton", frame)
+setSpawnBtn.Size = UDim2.new(0.45, 0, 0, 30)
+setSpawnBtn.Position = UDim2.new(0.05, 0, 1, -85)
+setSpawnBtn.Text = "Set"
+setSpawnBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+setSpawnBtn.TextColor3 = Color3.new(1, 1, 1)
+setSpawnBtn.Font = Enum.Font.Gotham
+setSpawnBtn.TextScaled = true
+Instance.new("UICorner", setSpawnBtn)
+
+local clearSpawnBtn = Instance.new("TextButton", frame)
+clearSpawnBtn.Size = UDim2.new(0.45, 0, 0, 30)
+clearSpawnBtn.Position = UDim2.new(0.5, -10, 1, -85)
+clearSpawnBtn.Text = "Clear Spawns"
+clearSpawnBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+clearSpawnBtn.TextColor3 = Color3.new(1, 1, 1)
+clearSpawnBtn.Font = Enum.Font.Gotham
+clearSpawnBtn.TextScaled = true
+Instance.new("UICorner", clearSpawnBtn)
+
+local selectedPart = nil
+local isGuiOpen = true
+local isHighlightOn = false
+local selectionBox = Instance.new("SelectionBox")
+selectionBox.Color3 = Color3.fromRGB(0, 255, 255)
+selectionBox.LineThickness = 0.05
+selectionBox.Transparency = 0.5
+selectionBox.Parent = game.CoreGui
+local SpawnList = {} -- Table to store spawn positions
+
+-- Function to get the full path of a part
+local function getFullPath(instance)
+    local path = instance.Name
+    local parent = instance.Parent
+    while parent and parent ~= game do
+        path = parent.Name .. "." .. path
+        parent = parent.Parent
+    end
+    return "game:GetService(\"" .. parent.Name .. "\")." .. path
+end
+
+-- Function to update highlight
+local function updateHighlight()
+    if isHighlightOn and selectedPart and selectedPart:IsA("BasePart") then
+        selectionBox.Adornee = selectedPart
+        selectionBox.Visible = true
+    else
+        selectionBox.Adornee = nil
+        selectionBox.Visible = false
+    end
+end
+
+-- Toggle GUI visibility with animation
+local function toggleGui()
+    isGuiOpen = not isGuiOpen
+    toggleBtn.Text = isGuiOpen and "Open" or "Close"
+    
+    local goal = isGuiOpen and {Size = UDim2.new(0, 300, 0, 240)} or {Size = UDim2.new(0, 0, 0, 0)}
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(frame, tweenInfo, goal)
+    tween:Play()
+    
+    frame.Visible = isGuiOpen
+    if not isGuiOpen then
+        isHighlightOn = false
+        highlightBtn.Text = "Highlight: OFF"
+        updateHighlight()
+        SpawnList = {} -- Clear spawn list when GUI is closed
+        pathLabel.Text = "Click on a part to detect"
+    end
+end
+
+-- Toggle Button Click
+toggleBtn.MouseButton1Click:Connect(toggleGui)
+
+-- Highlight Button Click
+highlightBtn.MouseButton1Click:Connect(function()
+    if selectedPart then
+        isHighlightOn = not isHighlightOn
+        highlightBtn.Text = isHighlightOn and "Highlight: ON" or "Highlight: OFF"
+        updateHighlight()
+    else
+        pathLabel.Text = "No part selected"
+    end
+end)
+
+-- Set Spawn Button Click
+setSpawnBtn.MouseButton1Click:Connect(function()
+    if selectedPart then
+        local pos = selectedPart.Position
+        table.insert(SpawnList, pos)
+        pathLabel.Text = "Spawn set for " .. selectedPart.Name .. " (" .. #SpawnList .. " total)"
+    else
+        pathLabel.Text = "No part selected"
+    end
+end)
+
+-- Clear Spawn Button Click
+clearSpawnBtn.MouseButton1Click:Connect(function()
+    SpawnList = {}
+    pathLabel.Text = "Spawn list cleared"
+end)
+
+-- Mouse click detection
+Mouse.Button1Down:Connect(function()
+    if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
+    local target = Mouse.Target
+    if target and target:IsA("BasePart") then
+        selectedPart = target
+        pathLabel.Text = getFullPath(target)
+        updateHighlight()
+    end
+end)
+
+-- Copy Path Button
+copyBtn.MouseButton1Click:Connect(function()
+    if selectedPart then
+        local success, err = pcall(function()
+            setclipboard(getFullPath(selectedPart))
+            pathLabel.Text = "Path copied: " .. getFullPath(selectedPart)
+        end)
+        if not success then
+            warn("Failed to copy to clipboard: " .. tostring(err))
+            pathLabel.Text = "Error: Clipboard not supported"
+        end
+    else
+        pathLabel.Text = "No part selected"
+    end
+end)
+
+-- Copy Spawn Code Button
+copyScript.MouseButton1Click:Connect(function()
+    if #SpawnList > 0 then
+        local scriptText = [[
+-- Generated by @TheMugenKing
+local hrp = game:GetService('Players').LocalPlayer.Character:WaitForChild('HumanoidRootPart')
+local SpawnList = {
+]]
+        for i, pos in ipairs(SpawnList) do
+            scriptText = scriptText .. "    Vector3.new(" .. pos.X .. ", " .. pos.Y .. ", " .. pos.Z .. ")"
+            if i < #SpawnList then
+                scriptText = scriptText .. ","
+            end
+            scriptText = scriptText .. "\n"
+        end
+        scriptText = scriptText .. [[
+}
+for _, pos in ipairs(SpawnList) do
+    task.wait(0.4)
+    hrp.CFrame = CFrame.new(pos)
+end
+]]
+        local success, err = pcall(function()
+            setclipboard(scriptText)
+            pathLabel.Text = "Spawn code copied for " .. #SpawnList .. " position(s)"
+        end)
+        if not success then
+            warn("Failed to copy to clipboard: " .. tostring(err))
+            pathLabel.Text = "Error: Clipboard not supported"
+        end
+    else
+        pathLabel.Text = "No spawn positions set"
+    end
+end)
