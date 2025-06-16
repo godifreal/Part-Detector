@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 -- GUI Setup
 local gui = Instance.new("ScreenGui")
 gui.Parent = game.CoreGui
+gui.Name = "PartDetectorGui"
 
 -- Toggle Button (always visible)
 local toggleBtn = Instance.new("TextButton", gui)
@@ -20,7 +21,7 @@ toggleBtn.TextScaled = true
 Instance.new("UICorner", toggleBtn)
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 300, 0, 240) -- Increased height for new button
+frame.Size = UDim2.new(0, 300, 0, 220) -- Reduced height for compact layout
 frame.Position = UDim2.new(0, 20, 0.6, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 frame.BorderSizePixel = 0
@@ -36,6 +37,7 @@ title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
 title.TextScaled = true
 
+local titleHoverConnection
 title.MouseEnter:Connect(function()
     title.TextColor3 = Color3.new(0.6, 1, 0.6)
 end)
@@ -57,7 +59,7 @@ Instance.new("UICorner", pathLabel)
 
 local copyBtn = Instance.new("TextButton", frame)
 copyBtn.Size = UDim2.new(0.3, 0, 0, 30)
-copyBtn.Position = UDim2.new(0.05, 0, 1, -125)
+copyBtn.Position = UDim2.new(0.05, 0, 1, -105)
 copyBtn.Text = "Copy Path"
 copyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 copyBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -67,7 +69,7 @@ Instance.new("UICorner", copyBtn)
 
 local copyScript = Instance.new("TextButton", frame)
 copyScript.Size = UDim2.new(0.35, 0, 0, 30)
-copyScript.Position = UDim2.new(0.375, 0, 1, -125)
+copyScript.Position = UDim2.new(0.375, 0, 1, -105)
 copyScript.Text = "Copy Spawn Code"
 copyScript.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 copyScript.TextColor3 = Color3.new(1, 1, 1)
@@ -77,7 +79,7 @@ Instance.new("UICorner", copyScript)
 
 local highlightBtn = Instance.new("TextButton", frame)
 highlightBtn.Size = UDim2.new(0.25, 0, 0, 30)
-highlightBtn.Position = UDim2.new(0.75, -10, 1, -125)
+highlightBtn.Position = UDim2.new(0.75, -10, 1, -105)
 highlightBtn.Text = "Highlight: OFF"
 highlightBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 highlightBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -86,8 +88,8 @@ highlightBtn.TextScaled = true
 Instance.new("UICorner", highlightBtn)
 
 local setSpawnBtn = Instance.new("TextButton", frame)
-setSpawnBtn.Size = UDim2.new(0.45, 0, 0, 30)
-setSpawnBtn.Position = UDim2.new(0.05, 0, 1, -85)
+setSpawnBtn.Size = UDim2.new(0.3, 0, 0, 30)
+setSpawnBtn.Position = UDim2.new(0.05, 0, 1, -65)
 setSpawnBtn.Text = "Set"
 setSpawnBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 setSpawnBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -95,9 +97,29 @@ setSpawnBtn.Font = Enum.Font.Gotham
 setSpawnBtn.TextScaled = true
 Instance.new("UICorner", setSpawnBtn)
 
+local upBtn = Instance.new("TextButton", frame)
+upBtn.Size = UDim2.new(0.3, 0, 0, 30)
+upBtn.Position = UDim2.new(0.375, 0, 1, -65)
+upBtn.Text = "Up"
+upBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+upBtn.TextColor3 = Color3.new(1, 1, 1)
+upBtn.Font = Enum.Font.Gotham
+upBtn.TextScaled = true
+Instance.new("UICorner", upBtn)
+
+local downBtn = Instance.new("TextButton", frame)
+downBtn.Size = UDim2.new(0.3, -10, 0, 30)
+downBtn.Position = UDim2.new(0.675, 0, 1, -65)
+downBtn.Text = "Down"
+downBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+downBtn.TextColor3 = Color3.new(1, 1, 1)
+downBtn.Font = Enum.Font.Gotham
+downBtn.TextScaled = true
+Instance.new("UICorner", downBtn)
+
 local clearSpawnBtn = Instance.new("TextButton", frame)
 clearSpawnBtn.Size = UDim2.new(0.45, 0, 0, 30)
-clearSpawnBtn.Position = UDim2.new(0.5, -10, 1, -85)
+clearSpawnBtn.Position = UDim2.new(0.05, 0, 1, -25)
 clearSpawnBtn.Text = "Clear Spawns"
 clearSpawnBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 clearSpawnBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -114,6 +136,8 @@ selectionBox.LineThickness = 0.05
 selectionBox.Transparency = 0.5
 selectionBox.Parent = game.CoreGui
 local SpawnList = {} -- Table to store spawn positions
+local selectedSpawnIndex = nil -- Track the selected spawn position index
+local mouseDebounce = false -- Debounce for mouse clicks
 
 -- Function to get the full path of a part
 local function getFullPath(instance)
@@ -137,12 +161,21 @@ local function updateHighlight()
     end
 end
 
+-- Function to swap elements in SpawnList
+local function swapSpawnPositions(index1, index2)
+    if index1 and index2 and index1 > 0 and index2 > 0 and index1 <= #SpawnList and index2 <= #SpawnList then
+        SpawnList[index1], SpawnList[index2] = SpawnList[index2], SpawnList[index1]
+        return true
+    end
+    return false
+end
+
 -- Toggle GUI visibility with animation
 local function toggleGui()
     isGuiOpen = not isGuiOpen
     toggleBtn.Text = isGuiOpen and "Open" or "Close"
     
-    local goal = isGuiOpen and {Size = UDim2.new(0, 300, 0, 240)} or {Size = UDim2.new(0, 0, 0, 0)}
+    local goal = isGuiOpen and {Size = UDim2.new(0, 300, 0, 220)} or {Size = UDim2.new(0, 0, 0, 0)}
     local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local tween = TweenService:Create(frame, tweenInfo, goal)
     tween:Play()
@@ -152,16 +185,28 @@ local function toggleGui()
         isHighlightOn = false
         highlightBtn.Text = "Highlight: OFF"
         updateHighlight()
-        SpawnList = {} -- Clear spawn list when GUI is closed
+        SpawnList = {}
+        selectedSpawnIndex = nil
         pathLabel.Text = "Click on a part to detect"
     end
 end
 
+-- Clean up connections to prevent memory leaks
+local connections = {}
+
+local function cleanup()
+    for _, connection in pairs(connections) do
+        connection:Disconnect()
+    end
+    connections = {}
+    gui:Destroy()
+end
+
 -- Toggle Button Click
-toggleBtn.MouseButton1Click:Connect(toggleGui)
+table.insert(connections, toggleBtn.MouseButton1Click:Connect(toggleGui))
 
 -- Highlight Button Click
-highlightBtn.MouseButton1Click:Connect(function()
+table.insert(connections, highlightBtn.MouseButton1Click:Connect(function()
     if selectedPart then
         isHighlightOn = not isHighlightOn
         highlightBtn.Text = isHighlightOn and "Highlight: ON" or "Highlight: OFF"
@@ -169,38 +214,67 @@ highlightBtn.MouseButton1Click:Connect(function()
     else
         pathLabel.Text = "No part selected"
     end
-end)
+end))
 
 -- Set Spawn Button Click
-setSpawnBtn.MouseButton1Click:Connect(function()
+table.insert(connections, setSpawnBtn.MouseButton1Click:Connect(function()
     if selectedPart then
-        local pos = selectedPart.Position
+        local pos = selectedPart.Position + Vector3.new(0, 3, 0) -- Offset 3 studs upward
         table.insert(SpawnList, pos)
-        pathLabel.Text = "Spawn set for " .. selectedPart.Name .. " (" .. #SpawnList .. " total)"
+        selectedSpawnIndex = #SpawnList
+        pathLabel.Text = "Spawn set for " .. selectedPart.Name .. " (" .. #SpawnList .. " total, selected: " .. selectedSpawnIndex .. ")"
     else
         pathLabel.Text = "No part selected"
     end
-end)
+end))
+
+-- Up Button Click
+table.insert(connections, upBtn.MouseButton1Click:Connect(function()
+    if selectedSpawnIndex and selectedSpawnIndex > 1 then
+        if swapSpawnPositions(selectedSpawnIndex, selectedSpawnIndex - 1) then
+            selectedSpawnIndex = selectedSpawnIndex - 1
+            pathLabel.Text = "Moved spawn up to position " .. selectedSpawnIndex .. " (" .. #SpawnList .. " total)"
+        end
+    else
+        pathLabel.Text = "Cannot move up: No spawn selected or already at top"
+    end
+end))
+
+-- Down Button Click
+table.insert(connections, downBtn.MouseButton1Click:Connect(function()
+    if selectedSpawnIndex and selectedSpawnIndex < #SpawnList then
+        if swapSpawnPositions(selectedSpawnIndex, selectedSpawnIndex + 1) then
+            selectedSpawnIndex = selectedSpawnIndex + 1
+            pathLabel.Text = "Moved spawn down to position " .. selectedSpawnIndex .. " (" .. #SpawnList .. " total)"
+        end
+    else
+        pathLabel.Text = "Cannot move down: No spawn selected or already at bottom"
+    end
+end))
 
 -- Clear Spawn Button Click
-clearSpawnBtn.MouseButton1Click:Connect(function()
+table.insert(connections, clearSpawnBtn.MouseButton1Click:Connect(function()
     SpawnList = {}
+    selectedSpawnIndex = nil
     pathLabel.Text = "Spawn list cleared"
-end)
+end))
 
--- Mouse click detection
-Mouse.Button1Down:Connect(function()
-    if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
+-- Mouse click detection with debounce
+table.insert(connections, Mouse.Button1Down:Connect(function()
+    if mouseDebounce or not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
+    mouseDebounce = true
     local target = Mouse.Target
     if target and target:IsA("BasePart") then
         selectedPart = target
         pathLabel.Text = getFullPath(target)
         updateHighlight()
     end
-end)
+    task.wait(0.1) -- Short debounce delay
+    mouseDebounce = false
+end))
 
 -- Copy Path Button
-copyBtn.MouseButton1Click:Connect(function()
+table.insert(connections, copyBtn.MouseButton1Click:Connect(function()
     if selectedPart then
         local success, err = pcall(function()
             setclipboard(getFullPath(selectedPart))
@@ -213,10 +287,10 @@ copyBtn.MouseButton1Click:Connect(function()
     else
         pathLabel.Text = "No part selected"
     end
-end)
+end))
 
 -- Copy Spawn Code Button
-copyScript.MouseButton1Click:Connect(function()
+table.insert(connections, copyScript.MouseButton1Click:Connect(function()
     if #SpawnList > 0 then
         local scriptText = [[
 -- Generated by @TheMugenKing
@@ -248,4 +322,7 @@ end
     else
         pathLabel.Text = "No spawn positions set"
     end
-end)
+end))
+
+-- Cleanup on script termination
+game:BindToClose(cleanup)
